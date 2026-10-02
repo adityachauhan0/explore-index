@@ -1,12 +1,18 @@
 # explore-index
 
-**Stop your coding agent from rediscovering your codebase.**
+**Cut your AI coding agent's token bill 39.9% by stopping it from rediscovering your codebase.**
 
-An [Agent Skill](https://agentskills.dev) that makes an agent consult a small, persistent
-index of what it already learned about a repo *before* it fires another repo-wide grep.
+[![npm](https://img.shields.io/npm/v/explore-index.svg)](https://www.npmjs.com/package/explore-index)
+[![npm downloads](https://img.shields.io/npm/dm/explore-index.svg)](https://www.npmjs.com/package/explore-index)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/adityachauhan0/explore-index/blob/main/LICENSE)
+[![skills](https://img.shields.io/badge/Agent%20Skills-1.0-orange.svg)](https://agentskills.dev)
 
-Measured on 31 live agent runs: **39.9% fewer tokens to the same answer**, with zero
-accuracy loss and zero false hits. p = 0.0005.
+An [Agent Skill](https://agentskills.dev) for **Claude Code, OpenCode, Cursor and Codex** that
+makes an agent consult a small, persistent index of what it already learned about a repo
+*before* it fires another repo-wide grep.
+
+Measured over 31 live agent runs: **39.9% fewer tokens to the same answer** — zero accuracy
+loss, zero false hits, p = 0.0005.
 
 ```
 baseline   226,708 tokens / task  ·  20.7 tool calls  ·  9.8 turns
@@ -16,6 +22,7 @@ skill      136,156 tokens / task  ·  11.3 tool calls  ·  7.4 turns
 ```
 
 ---
+
 
 ## Install
 
@@ -176,6 +183,25 @@ An `ABSENT` row ends a spiral that the baseline couldn't escape.
 
 ---
 
+## How it compares
+
+| | Repo map (aider-style) | RAG / vector retrieval | LSP tooling | **explore-index** |
+|---|---|---|---|---|
+| Derived or asserted | Derived | Embedded | Derived | **Asserted, human-curated** |
+| Catches *"this doesn't exist"* | No | Weakly | No | **Yes — `ABSENT` rows** |
+| Catches repo conventions | No | No | No | **Yes — `RULE` rows** |
+| Requires a running server | No | **Yes** | **Yes** | **No** |
+| Adds process latency | No | Yes | Yes | **No** |
+| Token cost of consulting | Low | Medium | **High (measured)** | **~6 KB, once** |
+| Goes stale silently | Rarely | Sometimes | No | **Yes — `verify.sh` guards it** |
+
+> We deliberately parked LSP exposure: exposing language-server tooling to the agent
+> **increased** token usage in earlier trials. Vector retrieval and dedicated explorer
+> subagents are unmeasured — this skill is the cheap, dependency-free baseline they
+> would have to beat.
+
+---
+
 ## Honest limits
 
 - **One repo, one model, 7 tasks.** The direction is strong and the mechanism is measured,
@@ -231,6 +257,45 @@ Add `.explore/` to `.git/info/exclude` to keep it session-local.
 
 **Below ~20 files, ignore all of this** — just read the repo, it fits.
 
+---
+
+## FAQ
+
+**Does this reduce cost, or just token count?**
+Both. The saving is 90% cache-read tokens (81,835 of the 90,551 saved per task), which are
+billed at a steep discount versus fresh input — so the dollar saving is real, though smaller
+than raw token count suggests. Output tokens barely change: both arms write similar-length
+reports, because the skill routes the agent, it doesn't shorten answers.
+
+**Will it give my agent wrong answers?**
+That is the explicit design constraint. The index **routes; it never answers.** It stores only
+what a parser can't derive — proven absences, region pointers, conventions, repo-map overflow.
+No symbols, no signatures, no line numbers. A wrong row can cost one wasted hop, never a
+confident wrong answer. Across 14 treatment runs there were **0 false hits** against a 2%
+kill threshold, and accuracy was 1.000 in both arms under a mechanical grader.
+
+**Why does it help so much when my context window is huge?**
+Because cost isn't the search — it's the *turns* the search forces. 84.7% of billed tokens were
+cache-read, roughly 19,000 per turn, and every turn re-reads the entire accumulated context.
+The skill cuts turns by 24.2%; that compounding is where the 39.9% comes from.
+
+**Does it work for a repo I've never seen?**
+Yes, and that's the tested case — the four `held-out` tasks had no matching index row by
+construction and still improved 11–34%. A cold agent checks the index, finds nothing, and
+falls through to normal search under a 3-search cap.
+
+**Will the index go stale?**
+It can. `verify.sh` validates every anchor and exits non-zero on dead rows; run it after
+editing files that several rows point at. Unmaintained, it silently rots — which is why
+`stage: experimental`.
+
+**How is this different from a repo map (like aider's)?**
+A repo map derives structure deterministically from imports. This skill stores only what a
+parser *cannot* know: "this symbol provably doesn't exist", "this repo does X instead of Y",
+"the real implementation lives over there". They compose — the skill explicitly tells the
+agent not to duplicate symbols or signatures. In our repo, a PageRank + ambiguity-filtered
+map compressed 3.56M tokens of source to 904 tokens (~3,935×).
+
 ## License
 
-MIT
+MIT © [Aditya Chauhan](https://github.com/adityachauhan0)

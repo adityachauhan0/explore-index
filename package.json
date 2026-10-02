@@ -1,18 +1,27 @@
 {
   "name": "explore-index",
   "version": "0.1.1",
-  "description": "An Agent Skill that stops AI agents from re-exploring a repository they have already mapped \u2014 39.9% fewer tokens to the same answer.",
+  "description": "An Agent Skill that cuts AI coding-agent token usage 39.9% by stopping agents re-exploring an already-mapped codebase. Reduces redundant repo-wide grep, glob and file reads.",
   "keywords": [
     "agent-skills",
     "claude-code",
     "opencode",
     "cursor",
+    "codex",
     "ai-agent",
+    "llm",
     "token-efficiency",
+    "token-optimization",
+    "context-window",
+    "context-engineering",
     "codebase",
-    "exploration",
-    "context",
-    "repomap"
+    "code-exploration",
+    "repomap",
+    "repo-map",
+    "grep",
+    "developer-tools",
+    "llmops",
+    "prompt-caching"
   ],
   "homepage": "https://github.com/adityachauhan0/explore-index#readme",
   "bugs": {
@@ -23,7 +32,7 @@
     "url": "git+https://github.com/adityachauhan0/explore-index.git"
   },
   "license": "MIT",
-  "author": "Aditya Chauhan",
+  "author": "Aditya Chauhan <adityac.1406@gmail.com>",
   "type": "module",
   "files": [
     "skills/explore-index/",
