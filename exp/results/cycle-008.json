@@ -1,0 +1,77 @@
+{
+  "cycle": "008",
+  "cohort": "v2-binding",
+  "runs": 24,
+  "baseline": {
+    "n": 15,
+    "mean_tokens": 116119,
+    "mean_turns": 8.6,
+    "mean_tool_calls": 14.27,
+    "cache_read_share": 0.842,
+    "accuracy": 1.0,
+    "false_hits": 0,
+    "suspect_runs": []
+  },
+  "treatment": {
+    "n": 9,
+    "mean_tokens": 99921,
+    "mean_turns": 8.22,
+    "mean_tool_calls": 7.78,
+    "cache_read_share": 0.789,
+    "accuracy": 1.0,
+    "false_hits": 0,
+    "suspect_runs": []
+  },
+  "delta_tokens_pct": -13.9,
+  "delta_turns_pct": -4.4,
+  "delta_tool_calls_pct": -45.5,
+  "iso_accuracy": true,
+  "false_hit_rate": 0.0,
+  "welch_t": -0.575,
+  "welch_p": 0.5729,
+  "verdict": "PASS",
+  "per_task": {
+    "H1": {
+      "split": "heldout",
+      "baseline": 225121,
+      "treatment": 105323,
+      "delta_pct": -53.2
+    },
+    "H2": {
+      "split": "heldout",
+      "baseline": 107922,
+      "treatment": 78259,
+      "delta_pct": -27.5
+    },
+    "H3": {
+      "split": "heldout",
+      "baseline": 99580,
+      "treatment": 87703,
+      "delta_pct": -11.9
+    },
+    "H4": {
+      "split": "heldout",
+      "baseline": 146826,
+      "treatment": 259210,
+      "delta_pct": 76.5
+    },
+    "S1": {
+      "split": "seeded",
+      "baseline": 77144,
+      "treatment": 72337,
+      "delta_pct": -6.2
+    },
+    "S2": {
+      "split": "seeded",
+      "baseline": 86280,
+      "treatment": 98241,
+      "delta_pct": 13.9
+    },
+    "S3": {
+      "split": "seeded",
+      "baseline": 89443,
+      "treatment": 27634,
+      "delta_pct": -69.1
+    }
+  }
+}

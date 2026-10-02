@@ -94,9 +94,9 @@ TASK: {question}
 
 METHOD REQUIREMENTS — this is what is being measured, so follow them exactly:
 1. Before searching, state in one line what search strategy you are about to use.
-2. Search BROADLY and realistically, the way an agent with no prior knowledge would. Do not shortcut by guessing paths.
+2. {method_2}
 3. Log every tool call you make, in order. For each: the tool (grep/glob/read), the target (pattern or path), whether it returned results or came back empty, and roughly how big the output was.
-4. IMPORTANT: if a search comes back empty, try SYNONYMS and related terms. Do this naturally, as an agent genuinely trying to find something would. Try at least 3 different phrasings before concluding it does not exist.
+4. {method_4}
 5. If you open a file and it turns out to be irrelevant, explicitly note it as a wasted read.
 
 At the end report:
@@ -119,13 +119,41 @@ TREATMENT_MODE = (
     "path. Journal anything new you learn."
 )
 
+# Method requirements are arm-specific. Before 2026-10-02 both arms shared one
+# template whose rule 2 ("search BROADLY... do not shortcut") and rule 4 ("try at
+# least 3 different phrasings before concluding it does not exist") instructed the
+# treatment arm to do precisely what the skill forbids. The treatment arm was
+# being asked to ignore an ABSENT row and run the synonym family anyway, so a
+# wording fix in SKILL.md alone could never have been the whole story.
+#
+# Fix: the shared parts of the protocol (log every call, report strategy first,
+# declare wasted reads) stay identical across arms, so the measured difference is
+# the SEARCH STRATEGY and nothing else. Accuracy remains mechanical and identical.
+BASELINE_METHOD_2 = ("Search BROADLY and realistically, the way an agent with no prior "
+                     "knowledge would. Do not shortcut by guessing paths.")
+BASELINE_METHOD_4 = ("IMPORTANT: if a search comes back empty, try SYNONYMS and related terms. "
+                     "Do this naturally, as an agent genuinely trying to find something would. "
+                     "Try at least 3 different phrasings before concluding it does not exist.")
+
+TREATMENT_METHOD_2 = ("Follow the explore-index skill's search strategy: consult "
+                       ".explore/INDEX.md before a broad search, and when no row covers the "
+                       "question run one narrow grep with the task's own words, then at most "
+                       "one synonym grep, and only then widen.")
+TREATMENT_METHOD_4 = ("IMPORTANT: the skill's rule applies — if .explore/INDEX.md holds an "
+                       "ABSENT row covering this question, that is the answer: report it and "
+                       "stop, without running the synonym family. If no row covers it, search "
+                       "normally and try synonyms as an agent would.")
+
 
 def build_prompt(task: dict, arm: str) -> str:
     mode = BASELINE_MODE if arm == "baseline" else TREATMENT_MODE
+    m2 = BASELINE_METHOD_2 if arm == "baseline" else TREATMENT_METHOD_2
+    m4 = BASELINE_METHOD_4 if arm == "baseline" else TREATMENT_METHOD_4
     hint = ("where it lives, with paths, or state clearly that it does not exist")
     if task.get("absent_answer"):
         hint = "does it exist? If not, say so plainly and say what you searched"
-    return PROMPT_HEAD.format(repo=REPO, mode=mode, question=task["question"], answer_hint=hint)
+    return PROMPT_HEAD.format(repo=REPO, mode=mode, method_2=m2, method_4=m4,
+                              question=task["question"], answer_hint=hint)
 
 
 def _norm(text: str) -> str:

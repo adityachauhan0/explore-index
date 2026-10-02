@@ -4,9 +4,21 @@
 **Repo under test:** GrowiaCRM @ `146b7f19` — 1,406 code files, 6,336 symbols
 **Model:** `opencode-go/space-bunny-free`, subagents via the `explore` role
 **Runs:** 31 live subagent trajectories (29 in the final cohort)
-**Verdict:** **PASS** — −39.9% tokens at equal accuracy, p = 0.0005, 0 false hits
+**Verdict:** **PASS** — −39.9% tokens at equal accuracy, p = 0.0018, 0 false hits
 **Validation:** `npx -y skills-ref validate ./skills/explore-index` → `Valid skill`
 (and installed via `npx skills add`, active at `~/.agents/skills/explore-index`)
+
+> **Correction (2026-10-02).** This report previously stated p = 0.0005. That figure came from
+> a **normal approximation** to the t-distribution, which is anti-conservative at this sample
+> size (15 vs 14). Recomputed with an exact Welch t-test — df = 26.8 — the value is
+> **p = 0.0018**. The effect is unchanged and still significant; the published figure overstated
+> it. `analyze.py` now delegates to the exact implementation in `exp/costs.py`.
+>
+> The same review found that `provider_tokens == uncached_input + cache_read` exactly, i.e.
+> **output tokens are not part of the billed-token total**. The −39.9% headline is therefore
+> cache-read dominated. At a realistic cache-read discount the saving is **−31.9%**, and on
+> fresh tokens alone **−25.9%**. All three figures are in `exp/BENCHMARKS.md`; the range is the
+> honest claim, not the most flattering single number.
 
 ---
 
@@ -20,7 +32,7 @@
 | accuracy (mechanical grader) | 1.000 | 1.000 | — |
 | false hits | — | **0 / 14** | — |
 
-Welch t = −3.458, **p = 0.0005**. SD 75,994 (baseline) vs 64,868 (treatment).
+Welch t = −3.458, **p = 0.0018**. SD 75,994 (baseline) vs 64,868 (treatment).
 No run in either arm failed to resolve its task.
 
 Per-task deltas — every task is a win:

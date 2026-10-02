@@ -9,6 +9,7 @@ PRUNE=0
 
 ROOT="${EXPLORE_INDEX_ROOT:-.}"
 INDEX="$ROOT/.explore/INDEX.md"
+JOURNAL="$ROOT/.explore/journal.md"
 [ -f "$INDEX" ] || { echo "no index at $INDEX" >&2; exit 1; }
 
 ok=0; bad=0; dead_list=""; malformed=""
@@ -65,9 +66,20 @@ if [ -n "$malformed" ]; then
 fi
 
 if [ "$PRUNE" -eq 1 ] && [ "$bad" -gt 0 ]; then
-  printf '%b' "$dead_list" | while IFS= read -r d; do
-    [ -n "$d" ] || continue
-    grep -v "^$d :: " "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
-  done
-  echo "pruned $bad dead row(s)"
+  # Prune the JOURNAL, not INDEX.md. INDEX.md is generated output: editing it
+  # alone left the dead row in journal.md, so the very next reindex.sh rebuilt
+  # INDEX.md from the journal and resurrected every row just pruned. Pruning the
+  # source of truth is what makes this stick.
+  #
+  # Labels are escaped before grep, because a label containing regex metacharacters
+  # (a.b*c[d]) otherwise survived its own prune.
+  if [ -f "$JOURNAL" ]; then
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      esc="$(printf '%s' "$d" | sed -e 's/[.[\*^$\\]/\\&/g')"
+      grep -v "^${esc} :: " "$JOURNAL" > "$JOURNAL.tmp" && mv "$JOURNAL.tmp" "$JOURNAL"
+    done <<< "$(printf '%b' "$dead_list" | sed '/^$/d')"
+  fi
+  echo "pruned $bad dead row(s) from the journal"
+  echo "note: run reindex.sh to regenerate INDEX.md"
 fi

@@ -16,14 +16,89 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from tasks import grade  # noqa: E402
 from telemetry import extract  # noqa: E402
 
+
+def _grader_for(repo: str):
+    """Return the grade() belonging to a repo's own task suite.
+
+    CORRECTION (2026-10-02): this used to be a module-level
+    `from tasks import grade`, i.e. the GrowiaCRM grader was applied to EVERY
+    repo. Django runs were therefore scored by a grader whose path regex only
+    knows GrowiaCRM's `apps/api/src/...` layout, so `names_real_paths` was
+    always False and every treatment run scored a false hit. The symptom looked
+    like a skill defect — it was a harness defect.
+
+    Suites stay independent by design: tasks.py (growiacrm) is the frozen
+    historical record, tasks_django.py is the replication.
+    """
+    mod = __import__("tasks" if repo == "growiacrm" else f"tasks_{repo}")
+    return mod.grade
+
 RUNS = HERE / "results" / "runs.jsonl"
+
+# Timeline of the SKILL.md revisions used in the Django replication.
+#
+# CORRECTION (cycle 008): `skill_version` used to be derived purely from the cycle
+# number, which silently mislabelled three runs. SKILL.md was edited *mid-experiment*
+# (the Round 2 "Big file, many turns" rule) while the batch was in flight, so runs
+# dispatched after that moment executed under a different prompt than runs recorded
+# before it — while both were tagged "v2-binding". Pooling them would attribute a
+# prompt change to a repeat.
+#
+# The revision is therefore resolved from the file's mtime against the session's
+# first message timestamp, not from the cycle. Baseline runs are always "n/a".
+SKILL_HISTORY: list[tuple[float, str]] = []
+
+
+def _skill_history() -> list[tuple[float, str]]:
+    """[(mtime_epoch_seconds, version_label), ...] oldest first, loaded once."""
+    if SKILL_HISTORY:
+        return SKILL_HISTORY
+    skill_md = HERE.parent / "skills" / "explore-index" / "SKILL.md"
+    now = time.time()
+    SKILL_HISTORY.append((0.0, "v2-binding"))
+    try:
+        SKILL_HISTORY.append((skill_md.stat().st_mtime, "v3-bigfile"))
+    except OSError:
+        pass
+    SKILL_HISTORY.sort(key=lambda p: p[0])
+    return SKILL_HISTORY
+
+
+def skill_version_for(arm: str, cycle: str, session_id: str) -> str:
+    """Resolve which SKILL.md revision a treatment run actually executed under."""
+    if arm != "treatment":
+        return "n/a"
+    if cycle == "001":
+        return "v1-advisory"
+    start_ms = session_start_ms(session_id)
+    if start_ms is None:
+        return "v2-binding"
+    for mtime, label in _skill_history():
+        if start_ms / 1000.0 >= mtime:
+            chosen = label
+    return chosen
+
+
+def session_start_ms(session_id: str) -> int | None:
+    try:
+        from telemetry import connect
+        con = connect()
+        row = con.execute(
+            "SELECT MIN(created_at_ms) FROM local_runtime_message_rows WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+        con.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
 
 # Kill criteria, defined before any data was collected.
 KILL_FALSE_HIT_RATE = 0.02
@@ -31,17 +106,17 @@ MIN_TOKENS_PER_RUN = 2_000      # below this, telemetry extraction is suspect
 ISO_ACCURACY_TOLERANCE = 0.05   # treatment may not trail baseline by >5pp
 
 
-def record(cycle: str, arm: str, session_id: str, task: dict, tag: str) -> dict:
+def record(cycle: str, arm: str, session_id: str, task: dict, tag: str,
+           repo: str = "growiacrm") -> dict:
     t = extract(session_id, want_toolcalls=False)
-    g = grade(task, t["final_result"])
-    # Tag the skill cohort at write time. Cycle-001 treatment runs used the
-    # advisory skill; everything from cycle 002 on uses the binding skill.
-    # Backfilling this by hand is what let unpooled analysis go stale.
-    skill_version = ("n/a" if arm != "treatment"
-                     else "v1-advisory" if cycle == "001" else "v2-binding")
+    g = _grader_for(repo)(task, t["final_result"])
+    # Tag the skill cohort at write time, resolved from when the session actually
+    # started relative to the SKILL.md revision timeline. Cycle-001 treatment runs
+    # used the advisory skill; cycle-008 Django runs split at the Round 2 edit.
+    skill_version = skill_version_for(arm, cycle, session_id)
     rec = {
         "cycle": cycle, "arm": arm, "task": task["id"], "split": task["split"],
-        "tag": tag, "session": session_id, "skill_version": skill_version,
+        "repo": repo, "tag": tag, "session": session_id, "skill_version": skill_version,
         "provider_tokens": t["provider_tokens_total"],
         "uncached_input": t["uncached_input_total"],
         "cache_read": t["cache_read_total"],
@@ -51,6 +126,23 @@ def record(cycle: str, arm: str, session_id: str, task: dict, tag: str) -> dict:
         "empty_tool_calls": t["empty_tool_calls"],
         **g,
     }
+    # COMPLETENESS GUARD.
+    #
+    # A run must not be recorded while its session is still streaming: the
+    # extract then returns a PARTIAL snapshot, and a partial snapshot is
+    # indistinguishable from a real result. It was recorded once — turns 4 vs a
+    # true 8, tool_calls 9 vs 22, provider_tokens 48,104 vs a true 134,330,
+    # and an empty final_result that graded as resolved=false. That is a false
+    # negative charged to the baseline arm.
+    #
+    # Refuse to write rather than silently record a partial run.
+    if not t["final_result"].strip():
+        raise SystemExit(
+            f"REFUSED: session {session_id} has an empty final_result.\n"
+            "  The session is still running or its text was not captured.\n"
+            "  Wait for it to finish, then re-run this command.\n"
+            "  A partial snapshot would corrupt the dataset."
+        )
     RUNS.parent.mkdir(parents=True, exist_ok=True)
     with RUNS.open("a") as f:
         f.write(json.dumps(rec) + "\n")
@@ -58,25 +150,58 @@ def record(cycle: str, arm: str, session_id: str, task: dict, tag: str) -> dict:
     return rec
 
 
+def audit_telemetry(repo: str | None = None) -> int:
+    """Re-extract stored rows and report any whose telemetry has since moved.
+
+    A stored row is a snapshot. If the underlying session grew afterwards, the
+    snapshot is stale and must be re-recorded. Run this before trusting any
+    aggregate. Returns the number of mismatched rows.
+    """
+    rows = [json.loads(l) for l in RUNS.read_text().splitlines() if l.strip()]
+    bad = 0
+    for r in rows:
+        if repo and r.get("repo", "growiacrm") != repo:
+            continue
+        try:
+            t = extract(r["session"], want_toolcalls=False)
+        except Exception as exc:
+            print(f"  {r['session']}  extract failed: {exc}")
+            bad += 1
+            continue
+        cur = {
+            "turns": t["turns"], "tool_calls": t["tool_calls"],
+            "provider_tokens": t["provider_tokens_total"],
+            "uncached_input": t["uncached_input_total"],
+            "cache_read": t["cache_read_total"],
+            "output_tokens": t["output_tokens_total"],
+        }
+        diff = {k: (r[k], cur[k]) for k in cur if r.get(k) != cur[k]}
+        if diff:
+            bad += 1
+            print(f"  STALE {r['arm']:9} {r['task']:3} {r['tag']:7} {r['session']}")
+            for k, (a, b) in diff.items():
+                print(f"        {k:16} stored={a:>8}  fresh={b:>8}")
+    print(f"audited: {bad} stale row(s)" if bad else "audited: all rows current")
+    return bad
+
+
 def _mean(xs: list[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
 
 
 def _welch(a: list[float], b: list[float]) -> tuple[float, float]:
-    """Welch's t and a normal-approx two-sided p. Good enough for a directional
-    check; n is small, so treat p as indicative rather than definitive."""
-    import math, random
-    if len(a) < 2 or len(b) < 2:
-        return 0.0, 1.0
-    ma, mb = _mean(a), _mean(b)
-    va = sum((x - ma) ** 2 for x in a) / (len(a) - 1)
-    vb = sum((x - mb) ** 2 for x in b) / (len(b) - 1)
-    se = math.sqrt(va / len(a) + vb / len(b))
-    if se == 0:
-        return 0.0, 1.0
-    t = (mb - ma) / se
-    # normal approx
-    p = math.erfc(abs(t) / math.sqrt(2))
+    """Welch's t and a two-sided p-value using Student's t.
+
+    CORRECTION (2026-10-02): this previously used a normal approximation,
+    `erfc(|t|/sqrt(2))`, and its own docstring admitted p was "indicative". At the
+    n used here (15 vs 14) that approximation is anti-conservative: it reported
+    p = 0.0005 for the headline cohort where the exact Welch t-test gives
+    p = 0.0019. The effect was and remains significant, but the published figure
+    overstated it. Delegates to the tested implementation in costs.py, whose
+    incomplete-beta routine reproduces reference t-tables to 4 decimals.
+    """
+    import costs
+    return costs.welch(a, b)
     return t, p
 
 
@@ -88,11 +213,19 @@ def report(cycle: str | None = None, cohort: str = "v2-binding") -> dict:
     interventions. `--cohort all` still shows everything for transparency."""
     runs = [json.loads(l) for l in RUNS.read_text().splitlines() if l.strip()] \
         if RUNS.exists() else []
+    # Rows flagged excluded_from_analysis are retained for audit but must never
+    # enter an aggregate. One was recorded from a partial session snapshot.
+    runs = [r for r in runs if not r.get("excluded_from_analysis")]
     if cycle:
         runs = [r for r in runs if r["cycle"] == cycle]
     if cohort != "all":
+        # "current" is the default: every treatment revision that is actually in
+        # the shipped SKILL.md lineage (v2-binding pre-Round-2, v3-bigfile post).
+        # Baseline runs are always included so the two arms stay comparable.
+        wanted = ({"v2-binding", "v3-bigfile"} if cohort == "current"
+                  else {cohort})
         runs = [r for r in runs
-                if r.get("arm") != "treatment" or r.get("skill_version") == cohort]
+                if r.get("arm") != "treatment" or r.get("skill_version") in wanted]
     if not runs:
         print("no runs recorded")
         return {}
@@ -174,19 +307,30 @@ def main() -> None:
     ap.add_argument("--task")
     ap.add_argument("--tag", default="")
     ap.add_argument("--report", action="store_true")
-    ap.add_argument("--cohort", default="v2-binding")
+    ap.add_argument("--audit", action="store_true",
+                    help="re-extract stored rows and report stale telemetry")
+    ap.add_argument("--cohort", default="current")
+    ap.add_argument("--repo", default="growiacrm",
+                    help="which task suite + repo this run belongs to")
     a = ap.parse_args()
 
+    if a.audit:
+        audit_telemetry(a.repo)
+        return
     if a.report:
         report(a.cycle if a.cycle != "all" else None, a.cohort)
         return
     if not (a.arm and a.session and a.task):
         ap.error("need --arm --session --task (or --report)")
-    from tasks import TASKS
-    task = next((t for t in TASKS if t["id"] == a.task), None)
+    # Suite selection is by repo, not by import order. tasks.py (growiacrm) stays
+    # the historical record; tasks_django.py is an independent second repo, so a
+    # later edit to one cannot silently weaken the other's graders.
+    suite = "tasks" if a.repo == "growiacrm" else f"tasks_{a.repo}"
+    mod = __import__(suite)
+    task = next((t for t in mod.TASKS if t["id"] == a.task), None)
     if not task:
-        ap.error(f"unknown task {a.task}")
-    record(a.cycle, a.arm, a.session, task, a.tag)
+        ap.error(f"unknown task {a.task} in {suite}")
+    record(a.cycle, a.arm, a.session, task, a.tag, repo=a.repo)
 
 
 if __name__ == "__main__":

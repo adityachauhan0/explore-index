@@ -1,6 +1,6 @@
 # explore-index
 
-**Cut your AI coding agent's token bill 39.9% by stopping it from rediscovering your codebase.**
+**Stop your coding agent from rediscovering your codebase on every single run.**
 
 [![npm](https://img.shields.io/npm/v/explore-index.svg)](https://www.npmjs.com/package/explore-index)
 [![npm downloads](https://img.shields.io/npm/dm/explore-index.svg)](https://www.npmjs.com/package/explore-index)
@@ -11,15 +11,52 @@ An [Agent Skill](https://agentskills.dev) for **Claude Code, OpenCode, Cursor an
 makes an agent consult a small, persistent index of what it already learned about a repo
 *before* it fires another repo-wide grep.
 
-Measured over 31 live agent runs: **39.9% fewer tokens to the same answer** — zero accuracy
-loss, zero false hits, p = 0.0005.
+## The measured effect
 
-```
-baseline   226,708 tokens / task  ·  20.7 tool calls  ·  9.8 turns
-skill      136,156 tokens / task  ·  11.3 tool calls  ·  7.4 turns
-                                ↓
-                     90,551 tokens saved per task
-```
+Two repositories, 59 controlled A/B agent runs, equal accuracy and zero false hits
+in every arm. Reported as a range rather than a single headline number, because
+~85% of billed tokens are cache-read and the saving depends on how you price those.
+
+| Cache-read priced at | GrowiaCRM baseline | +skill | Django baseline | +skill |
+|---|---:|---:|---:|---:|
+| 1.0× (raw tokens) | 226,708 | **136,156** (−39.9%) | 116,119 | 92,504 (−20.3%) |
+| 0.1× (typical cache discount) | 53,009 | **36,109** (−31.9%) | 26,671 | 23,586 (−11.6%) |
+| 0.0× (fresh tokens only) | 33,709 | **24,992** (−25.9%) | 16,733 | 15,929 (−4.8%) |
+
+| | GrowiaCRM (n=15/14) | Django (n=15/16) |
+|---|---|---|
+| significance (1.0×) | **p = 0.0018** | p = 0.287 |
+| significance (0.1×) | **p = 0.0082** | **p = 0.363** |
+| accuracy | 1.000 | 1.000 |
+| false hits | 0 | 0 |
+| tool calls | −45.5% | −45.2% |
+
+**Read the two columns differently, because they say different things.**
+
+On **GrowiaCRM** the effect is large and significant at every cache-pricing rate.
+
+On **Django** it is *not statistically established* at any rate. The point estimate
+is consistently favourable and tool calls fell by the same ~45%, but the variance is
+so high that the comparison does not clear significance. With Cohen's *d* ≈ 0.28,
+roughly **205 runs per arm** would be needed to resolve an effect this size — the
+study ran 21. That is a power limitation, not a refutation, and it is the reason
+this stays `stage: experimental`.
+
+**Why tool calls fall but tokens don't always follow.** Turns, not searches, drive
+the bill: across the Django runs the correlation between turns and billed tokens is
+**r = 0.982**, against 0.593 for tool calls. Every round-trip re-sends the
+accumulated context. The causal chain is `skill → fewer searches → fewer round-trips
+→ fewer tokens`, and an agent can make fewer searches while spending more if it
+spreads the work over more turns. This study found and fixed exactly that failure
+mode (see [STUDY.md §4.5–4.6](STUDY.md)); it is the main thing that would need to
+work reliably for the token win to hold.
+
+**Full data and method** — every run, every session, the failures, and six harness
+bugs found along the way:
+
+- [`STUDY.md`](STUDY.md) — the method, both results, power analysis, threats to validity
+- [`BENCHMARKS.md`](BENCHMARKS.md) — generated per-run log
+- [`exp/experiments/`](exp/experiments/) — tool-call traces, cost-driver analysis, harness defects
 
 ---
 
@@ -100,11 +137,15 @@ Four entry kinds, and **a hit is binding, not advisory**:
 | `RULE` | a convention or gotcha | Follow it. It replaces a search, not a step of one. |
 | `REAL` | the repo map missed it | Read that one file. Done. |
 
-Plus two hard budgets the skill enforces:
+Plus the three rules that actually bind behaviour:
 
-- **At most 3 broad searches per task**, and only when no row covers the question.
-- **Read narrow, not whole.** `grep`/`glob` first, then `read` with `offset`/`limit`.
-  Confirming a file exists means reading ~60 lines, not 70KB.
+- **No index row, no broad search.** Consult `.explore/INDEX.md` first; if no row
+  covers the question, one narrow grep, one synonym, then widen.
+- **Count-anchored stop.** If you are about to run your **fourth** repo-wide
+  `grep`/`glob` on a task, you skipped the index — stop and read it.
+- **Big file, many turns.** `wc -l` before opening a suspected-large file. Under
+  ~500 lines, read it whole; over that, anchor with one grep and one spanning
+  read. Four reads against one file is the cap — a fifth is a symptom, not a search.
 
 The index **routes; it never answers.** It stores only what a parser cannot derive —
 proven absences, region pointers, conventions, and genuine repo-map overflow. No symbols,
@@ -114,13 +155,15 @@ no signatures, no line numbers, nothing a repo map already computes.
 
 ## Benchmarks
 
-**Setup.** 31 live `explore` subagent runs against [GrowiaCRM](https://github.com/adityachauhan0/GrowiaCRM)
-at commit `146b7f19` (1,406 code files, 6,336 symbols), on `opencode-go/space-bunny-free`.
-Tokens are **provider-billed** token counts read from the agent runtime's own usage store —
-not estimates. Accuracy is graded **mechanically** (required paths/symbols present in the
-final answer), so "cheaper" can never mean "wrong".
+**Setup.** Live `explore` subagent runs against two repositories on
+`opencode-go/space-bunny-free`. Tokens are **provider-billed** counts read from the agent
+runtime's own usage store — not estimates. Accuracy is graded **mechanically** (required
+paths/symbols present in the final answer), so "cheaper" can never quietly mean "wrong".
 
-Final cohort: **29 runs**, 15 baseline vs 14 skill.
+### GrowiaCRM — where the effect is established
+
+[GrowiaCRM](https://github.com/adityachauhan0/GrowiaCRM) at `146b7f19`, 1,406 code files.
+Final cohort **29 runs**, 15 baseline vs 14 skill.
 
 | Metric | Baseline | With skill | Delta |
 |---|---:|---:|---:|
@@ -131,16 +174,8 @@ Final cohort: **29 runs**, 15 baseline vs 14 skill.
 | Uncached input | 33,709 | 24,992 | **-25.9%** |
 | Output | 5,393 | 4,086 | **-24.2%** |
 
-| | |
-|---|---|
-| Welch *t* | -3.458 |
-| *p*-value | **0.0005** |
-| SD (baseline / skill) | 75,994 / 64,868 |
-| Accuracy | 1.000 / 1.000 |
-| False hits | **0** (2% threshold) |
-| Total tokens saved | **1,494,426** across 29 runs |
-
-### Per task
+Welch *t* = -3.458, ***p* = 0.0018**. SD 75,994 / 64,868. Accuracy 1.000 / 1.000.
+False hits **0**. Total saved **1,494,426 tokens** across 29 runs.
 
 Three **seeded** tasks (covered by seeded index rows) and four **held-out** tasks with *no
 matching index row by construction* — the held-out set is the honest test.
@@ -155,8 +190,35 @@ matching index row by construction* — the held-out set is the honest test.
 | `H3` offline IndexedDB | held-out | 171,140 | 117,772 | **-31.2%** |
 | `H4` runtime migrations | held-out | 217,307 | 192,751 | **-11.3%** |
 
-All seven favor the skill. The held-out tasks improving 11–34% is the important part: the
+All seven favor the skill. The held-out tasks improving 11-34% is the important part: the
 index isn't leaking answers, it's installing search discipline.
+
+### Django — where it did not replicate
+
+[django/django](https://github.com/django/django) at `80ea222`: 7,079 files, Python, a
+single flat package. Deliberately a different language and structure from GrowiaCRM.
+**31 valid runs**, 15 baseline vs 16 skill.
+
+| Metric | Baseline | With skill | Delta | *p* |
+|---|---:|---:|---:|---:|
+| Tokens per task | 116,119 | 92,504 | -20.3% | 0.287 |
+| Uncached input (0.1x cache) | 26,671 | 23,586 | -11.6% | 0.363 |
+| Uncached input (0.0x cache) | 16,733 | 15,929 | -4.8% | 0.671 |
+| Tool calls | 14.3 | 7.8 | **-45.2%** | — |
+
+Accuracy 1.000 / 1.000, false hits **0** — the safety property held perfectly.
+
+Not significant at any rate. The point estimate is always favourable and the tool-call
+reduction matches GrowiaCRM almost exactly, but run-to-run variance on this repository is
+so large (baseline CV 0.59) that the arm means do not separate. Two identical repeats of
+one task differed by 3.0x. With *d* ~ 0.28 this needs ~205 runs/arm to resolve; 21 were
+run. **Underpowered, not refuted.**
+
+One result worth keeping: `H4`, a 122KB file the index does not mention, initially made
+the skill look **76% worse** — it cut tool calls but paged through the file over 19 turns.
+The `Big file, many turns` rule was written specifically to fix that, after which the same
+task moved to **+23.5%**. That is the clearest evidence in the study that the prompt is the
+active ingredient.
 
 ### What the traces actually show
 

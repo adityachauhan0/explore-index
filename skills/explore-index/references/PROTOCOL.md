@@ -17,8 +17,8 @@ Consult the index at a **subsystem boundary**, not at every tool call.
 | Editing code you can already see | no |
 
 Consulting costs a read. On the miss path that read is wasted. Consulting on *every* search
-is how the original flat-memo design lost money: it taxed all lookups to serve the minority
-that hit.
+taxes all lookups to serve the minority that hit — consult at subsystem boundaries, not per
+tool call.
 
 ## The lookup, precisely
 
@@ -33,11 +33,14 @@ Cold subsystem, need to locate something
   │    ├─ RULE     → follow it.
   │    └─ REAL     → read the pointed file.
   │
-  └─ no row → search normally (grep / glob / read)
-                └─ journal what you learned
+  └─ no row → BOUNDED search, not your default
+               1. one grep, task's own words, path = your subsystem
+               2. if empty, one synonym grep
+               3. only then widen
+               └─ journal what you learned
 ```
 
-On a miss you pay: one index read, then the normal search. That is the tax. It only pays off
+On a miss you pay: one index read, then a bounded search. That is the tax. It only pays off
 if the hit rate is high enough — which is why the index is kept small and high-value rather
 than comprehensive.
 
@@ -55,8 +58,8 @@ index will make you pay for again.
 
 What is worth journalling:
 
-- **Absent facts** — highest value. An agent that cannot find `retryWithBackoff` will try
-  three synonyms and open three files. That is ~5k tokens to re-derive what one grep settles.
+- **Absent facts** — highest value. An agent that cannot find `retryWithBackoff` will try three
+  synonyms and open three files to re-derive what one grep settles. The row ends that search.
 - **Concepts** — "where does auth live" is not a symbol query and has no grep answer.
 - **Conventions** — architecture intent, which no parser infers.
 - **`REAL` overflow** — places the deterministic repo map genuinely missed.
@@ -69,25 +72,31 @@ What is **not** worth journalling:
 
 ## Validity and staleness
 
-Entries rot. Three transitions cost no tokens:
+Entries rot. Two transitions are mechanical:
 
 1. **Born → live** — validated free by the `grep` that located it.
-2. **Live → suspect** — if you edit a file, every row naming it is suspect. Mechanical.
-3. **Hit → evicted** — when a bucket hits its cap, zero-hit rows die first.
+2. **Live → dead** — only `REAL` rows have a path that can be checked. If you edit a file,
+   every row naming it is suspect.
 
 ```bash
-bash scripts/verify.sh          # report dead rows
-bash scripts/verify.sh --prune  # drop them
+bash scripts/verify.sh          # report dead REAL rows
+bash scripts/verify.sh --prune  # drop them from journal.md
 bash scripts/reindex.sh         # rebuild INDEX.md from the journal
 ```
+
+Prune the **journal**, not `INDEX.md`. `INDEX.md` is generated output; a dead row left in the
+journal comes straight back on the next rebuild.
 
 Anchor to a literal string, never a line number. Line numbers rot on any edit above them —
 including your own.
 
 ## Growth discipline
 
-The index is only cheap while it is small. When `reindex.sh` reports entries being dropped by
-the cap, that is a signal the index is full of low-value rows. Add fewer, not more.
+The index is only cheap while it is small. Each bucket renders at most 40 rows and `reindex.sh`
+silently keeps the first 40 it finds after sorting — it does **not** drop zero-hit rows first,
+and it does not report what the cap discarded. So a bucket over 40 entries loses rows without
+telling you which. Check `entries: N journalled, M rendered` at the foot of `INDEX.md`: if M
+is much smaller than N, prune before adding.
 
 If the index is not shrinking your exploration, deleting it entirely is better than keeping a
 useless one — a stale index that is consulted and trusted is worse than no index.

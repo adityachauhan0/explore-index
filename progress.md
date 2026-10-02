@@ -38,7 +38,7 @@ the 2 cycle-001 advisory-skill runs are tagged and excluded.
 | Accuracy (mechanical grader) | 1.000 | 1.000 | equal |
 | False hits | — | 0 | pass (2% kill threshold) |
 
-Welch t = -3.458, p = 0.0005. **90,551 tokens saved per task**; 1,494,426 across the
+Welch t = -3.458, p = 0.0018. **90,551 tokens saved per task**; 1,494,426 across the
 29 runs. All 7 tasks favour treatment, including the 4 `held-out` tasks that have no
 matching index row by construction.
 
