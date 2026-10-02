@@ -3,7 +3,7 @@ name: explore-index
 description: Consult a small persistent index of what was already learned about this repo before running broad searches, so exploration stops repeating itself. Use when you need to find where something lives, before grepping or globbing across a repo you have not fully navigated this session, when a symbol or concept does not appear to exist, or when deciding whether a subsystem has already been traced. Covers proven-absent facts, concept-to-region pointers, and repo conventions. Not for ordinary edits to a file you already have open.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   stage: "experimental"
 ---
 

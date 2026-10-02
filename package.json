@@ -1,7 +1,7 @@
 {
   "name": "explore-index",
-  "version": "0.1.0",
-  "description": "An Agent Skill that stops AI agents from re-exploring a repository they have already mapped — 39.9% fewer tokens to the same answer.",
+  "version": "0.1.1",
+  "description": "An Agent Skill that stops AI agents from re-exploring a repository they have already mapped \u2014 39.9% fewer tokens to the same answer.",
   "keywords": [
     "agent-skills",
     "claude-code",
