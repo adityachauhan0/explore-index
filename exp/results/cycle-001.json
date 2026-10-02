@@ -1,0 +1,29 @@
+{
+  "cycle": "001",
+  "cohort": "v2-binding",
+  "runs": 2,
+  "baseline": {
+    "n": 2,
+    "mean_tokens": 226216,
+    "mean_turns": 10.5,
+    "mean_tool_calls": 24.0,
+    "cache_read_share": 0.844,
+    "accuracy": 1.0,
+    "false_hits": 0,
+    "suspect_runs": []
+  },
+  "per_task": {
+    "S1": {
+      "split": "seeded",
+      "baseline": 236248,
+      "treatment": null,
+      "delta_pct": null
+    },
+    "S3": {
+      "split": "seeded",
+      "baseline": 216185,
+      "treatment": null,
+      "delta_pct": null
+    }
+  }
+}

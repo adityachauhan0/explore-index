@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+npm-debug.log*
+*.tgz
+
+# OS
+.DS_Store
+
+# Local auth — never commit
+.npmrc
+.env
+.env.*
+# Local experiment traces — contain third-party/internal repo internals.
+# Tracked aggregate metrics (runs.jsonl, cycle-*.json) are intentionally kept.
+exp/results/probes/
+exp/results/repomap.json

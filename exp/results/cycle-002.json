@@ -1,0 +1,52 @@
+{
+  "cycle": "002",
+  "runs": 4,
+  "baseline": {
+    "n": 1,
+    "mean_tokens": 283157,
+    "mean_turns": 10.0,
+    "mean_tool_calls": 28.0,
+    "cache_read_share": 0.809,
+    "accuracy": 1.0,
+    "false_hits": 0,
+    "suspect_runs": []
+  },
+  "treatment": {
+    "n": 3,
+    "mean_tokens": 130414,
+    "mean_turns": 8.0,
+    "mean_tool_calls": 11.0,
+    "cache_read_share": 0.793,
+    "accuracy": 1.0,
+    "false_hits": 0,
+    "suspect_runs": []
+  },
+  "delta_tokens_pct": -53.9,
+  "delta_turns_pct": -20.0,
+  "delta_tool_calls_pct": -60.7,
+  "iso_accuracy": true,
+  "false_hit_rate": 0.0,
+  "welch_t": 0.0,
+  "welch_p": 1.0,
+  "verdict": "PASS",
+  "per_task": {
+    "H2": {
+      "split": "heldout",
+      "baseline": 283157,
+      "treatment": 206708,
+      "delta_pct": -27.0
+    },
+    "S1": {
+      "split": "seeded",
+      "baseline": null,
+      "treatment": 115282,
+      "delta_pct": null
+    },
+    "S3": {
+      "split": "seeded",
+      "baseline": null,
+      "treatment": 69251,
+      "delta_pct": null
+    }
+  }
+}

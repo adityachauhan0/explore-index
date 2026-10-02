@@ -1,0 +1,42 @@
+{
+  "name": "explore-index",
+  "version": "0.1.0",
+  "description": "An Agent Skill that stops AI agents from re-exploring a repository they have already mapped — 39.9% fewer tokens to the same answer.",
+  "keywords": [
+    "agent-skills",
+    "claude-code",
+    "opencode",
+    "cursor",
+    "ai-agent",
+    "token-efficiency",
+    "codebase",
+    "exploration",
+    "context",
+    "repomap"
+  ],
+  "homepage": "https://github.com/adityachauhan0/explore-index#readme",
+  "bugs": {
+    "url": "https://github.com/adityachauhan0/explore-index/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adityachauhan0/explore-index.git"
+  },
+  "license": "MIT",
+  "author": "Aditya Chauhan",
+  "type": "module",
+  "files": [
+    "skills/explore-index/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bash skills/explore-index/scripts/verify.sh"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

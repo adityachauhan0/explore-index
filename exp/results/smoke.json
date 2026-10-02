@@ -1,0 +1,31 @@
+{
+  "policy": "gate_cold_subsystem",
+  "hit_rate": 0.55,
+  "seeds": 25,
+  "held_out": false,
+  "baseline": {
+    "n": 300,
+    "mean_tokens": 5203.2,
+    "median_tokens": 4386.5,
+    "stdev": 2546.4,
+    "resolve_rate": 1.0,
+    "false_hit_rate": 0.0,
+    "mean_rounds": 6.35,
+    "mean_waste": 0
+  },
+  "index": {
+    "n": 300,
+    "mean_tokens": 3835.9,
+    "median_tokens": 3512.5,
+    "stdev": 2551.4,
+    "resolve_rate": 1.0,
+    "false_hit_rate": 0.0033,
+    "mean_rounds": 6.16,
+    "mean_waste": 113.3
+  },
+  "delta_pct": -26.28,
+  "welch_t": 6.559,
+  "welch_p": 0.0,
+  "guard_accuracy": true,
+  "guard_falsehit": true
+}
