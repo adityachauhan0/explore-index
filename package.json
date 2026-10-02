@@ -1,6 +1,6 @@
 {
   "name": "explore-index",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "An Agent Skill that cuts AI coding-agent token usage 39.9% by stopping agents re-exploring an already-mapped codebase. Reduces redundant repo-wide grep, glob and file reads.",
   "keywords": [
     "agent-skills",
