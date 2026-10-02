@@ -20,19 +20,25 @@ skill      136,156 tokens / task  ·  11.3 tool calls  ·  7.4 turns
 ## Install
 
 ```bash
-# npm (recommended)
-npx skills add explore-index
-
-# or straight from GitHub
+# from GitHub (recommended)
 npx skills add adityachauhan0/explore-index
 
 # global, for every agent on this machine
-npx skills add explore-index -g -y
+npx skills add adityachauhan0/explore-index -g -y
+
+# pick a single agent
+npx skills add adityachauhan0/explore-index -a cursor -y
 ```
 
 Works with any [Agent Skills](https://agentskills.dev) client — Claude Code, OpenCode,
-Cursor, and the rest. The package is a plain skill directory; no runtime, no dependencies,
-no network calls.
+Cursor, Antigravity, Codex and the rest. It's a plain skill directory: no runtime, no
+dependencies, no network calls.
+
+> **On npm:** the package is also published as [`explore-index`](https://www.npmjs.com/package/explore-index),
+> but `npx skills add` resolves its argument as a **GitHub source**, not an npm package.
+> Installing it from npm means unpacking the tarball and copying the skill directory —
+> use the GitHub command above unless you're wiring it into your own tooling.
+
 
 <details>
 <summary>Manual install</summary>
